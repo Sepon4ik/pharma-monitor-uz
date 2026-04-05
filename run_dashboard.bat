@@ -1,0 +1,3 @@
+@echo off
+echo Starting Pharma Monitor Dashboard...
+streamlit run src/pharma_monitor/dashboard/app.py --server.port 8501
