@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pharma Monitor — Uzbekistan</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="sidebar">
+        <h1>Pharma Monitor</h1>
+        <p class="caption">Medical device distribution tracking</p>
+        <hr>
+        {% if dates %}
+        <label for="date-select">Scrape Date</label>
+        <select id="date-select" onchange="changeDate(this.value)">
+            {% for d in dates %}
+            <option value="{{ d }}" {% if d == selected_date %}selected{% endif %}>{{ d }}</option>
+            {% endfor %}
+        </select>
+        {% else %}
+        <p class="warning">No data available.</p>
+        {% endif %}
+        <hr>
+        <nav>
+            <a href="/overview{% if selected_date %}?date={{ selected_date }}{% endif %}" class="nav-btn {% if '/overview' in request.url.path or request.url.path == '/' %}active{% endif %}">Overview</a>
+            <a href="/brands{% if selected_date %}?date={{ selected_date }}{% endif %}" class="nav-btn {% if '/brands' in request.url.path %}active{% endif %}">Brand Drill-Down</a>
+            <a href="/chains{% if selected_date %}?date={{ selected_date }}{% endif %}" class="nav-btn {% if '/chains' in request.url.path %}active{% endif %}">Chain Analysis</a>
+        </nav>
+        <hr>
+        <p class="caption">Recent scrapes</p>
+        {% for run in runs %}
+        <div class="run-row">
+            {% if run.status == 'done' %}&#10003;{% else %}&#10007;{% endif %}
+            {{ run.started_at[:16] }} | {{ run.observations_count or 0 }} obs
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="main-content">
+        {% block content %}{% endblock %}
+        <hr>
+        <p class="footer">Pharma Monitor v1.0 | Data: ArzonApteka.uz{% if selected_date %} | Scrape: {{ selected_date }}{% endif %}</p>
+    </div>
+
+    <script>
+    function changeDate(date) {
+        const url = new URL(window.location);
+        url.searchParams.set('date', date);
+        window.location = url;
+    }
+    const CHART_COLORS = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#84cc16','#f97316','#6366f1','#14b8a6','#e11d48','#a855f7','#0ea5e9','#22c55e'];
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

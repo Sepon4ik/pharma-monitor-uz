@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Brand Drill-Down</h2>
+<p class="caption">Select a brand to see its products and distribution</p>
+
+{% if not has_data %}
+<div class="info-box">No data available.</div>
+{% else %}
+
+<div class="brand-grid">
+    {% for b in brand_cards %}
+    <a href="/brands/{{ b.brand|quote }}?date={{ selected_date }}" class="brand-card">
+        <div class="brand-name">{{ b.brand }}</div>
+        <div class="brand-stat">{{ b.products }} products | {{ "{:,}".format(b.pharmacies) }} pharmacies | ND: {{ b.nd_pct }}%</div>
+        <div class="brand-stat">Avg price: {{ "{:,}".format(b.avg_price) }} UZS | Stock: {{ "{:,}".format(b.total_stock) }}</div>
+    </a>
+    {% endfor %}
+</div>
+
+{% if other_brands %}
+<h3>Other brands</h3>
+<div class="table-scroll">
+    <table class="data-table">
+        <thead><tr><th>Brand</th><th>Products</th><th>Pharmacies</th><th>ND %</th><th>Avg Price</th><th>Stock</th></tr></thead>
+        <tbody>
+        {% for r in other_brands %}
+        <tr>
+            <td>{{ r.brand }}</td><td>{{ r.products }}</td><td>{{ "{:,}".format(r.pharmacies) }}</td>
+            <td>{{ "%.1f"|format(r.nd_pct) }}%</td><td>{{ "{:,}".format(r.avg_price) }}</td>
+            <td>{{ "{:,}".format(r.total_stock) }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}

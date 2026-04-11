@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block content %}
+<a href="/brands?date={{ selected_date }}" class="back-link">&larr; Back to brands</a>
+<h2>{{ brand }}</h2>
+
+{% if not has_data %}
+<div class="info-box">No data for this brand.</div>
+{% else %}
+
+<div class="kpi-row">
+    <div class="kpi-card"><div class="label">Products</div><div class="value">{{ brand_kpis.products }}</div></div>
+    <div class="kpi-card"><div class="label">Pharmacies</div><div class="value">{{ "{:,}".format(brand_kpis.pharmacies) }}</div></div>
+    <div class="kpi-card"><div class="label">Distribution</div><div class="value">{{ brand_kpis.distribution }}%</div></div>
+    <div class="kpi-card"><div class="label">Total Stock</div><div class="value">{{ "{:,}".format(brand_kpis.total_stock) }}</div></div>
+</div>
+
+<h3>Select product</h3>
+<select class="filter-select" onchange="window.location='/brands/{{ brand|quote }}?date={{ selected_date }}&product='+encodeURIComponent(this.value)">
+    {% for p in product_names %}
+    <option value="{{ p }}" {% if p == selected_product %}selected{% endif %}>{{ p }}</option>
+    {% endfor %}
+</select>
+
+{% if selected_product %}
+<div class="kpi-row">
+    <div class="kpi-card"><div class="label">Pharmacies</div><div class="value">{{ product_kpis.pharmacies }}</div></div>
+    <div class="kpi-card"><div class="label">Min Price</div><div class="value">{{ "{:,}".format(product_kpis.min_price) }} UZS</div></div>
+    <div class="kpi-card"><div class="label">Avg Price</div><div class="value">{{ "{:,}".format(product_kpis.avg_price) }} UZS</div></div>
+    <div class="kpi-card"><div class="label">Max Price</div><div class="value">{{ "{:,}".format(product_kpis.max_price) }} UZS</div></div>
+    <div class="kpi-card"><div class="label">Total Stock</div><div class="value">{{ "{:,}".format(product_kpis.total_stock) }}</div></div>
+</div>
+
+<div class="chart-row">
+    <div class="chart-box"><canvas id="chartCheapest"></canvas></div>
+    <div class="chart-box"><div id="map"></div></div>
+</div>
+
+<h3>Pharmacies ({{ pharmacy_list|length }})</h3>
+<div class="table-scroll">
+    <table class="data-table">
+        <thead><tr><th>Pharmacy</th><th>Address</th><th>Price (UZS)</th><th>Stock</th><th>Last Update</th></tr></thead>
+        <tbody>
+        {% for p in pharmacy_list %}
+        <tr>
+            <td>{{ p.pharmacy_name }}</td><td>{{ p.address }}</td>
+            <td>{{ "{:,}".format(p.price) }}</td><td>{{ p.stock }}</td><td>{{ p.last_update }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<details>
+    <summary>All {{ brand }} products ({{ all_products|length }})</summary>
+    <div class="table-scroll" style="margin-top:10px">
+        <table class="data-table">
+            <thead><tr><th>Product</th><th>Category</th><th>Pharmacies</th><th>Avg Price</th><th>Min</th><th>Max</th><th>Stock</th></tr></thead>
+            <tbody>
+            {% for p in all_products %}
+            <tr>
+                <td>{{ p.good_name }}</td><td>{{ p.category }}</td><td>{{ p.pharmacies }}</td>
+                <td>{{ "{:,.0f}".format(p.avg_price) }}</td><td>{{ "{:,}".format(p.min_price) }}</td>
+                <td>{{ "{:,}".format(p.max_price) }}</td><td>{{ "{:,}".format(p.total_stock) }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</details>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if has_data and selected_product %}
+<script>
+new Chart('chartCheapest', {
+    type: 'bar',
+    data: {
+        labels: {{ cheapest_labels|safe }},
+        datasets: [{ label: 'Price (UZS)', data: {{ cheapest_prices|safe }}, backgroundColor: 'rgba(16,185,129,0.7)' }]
+    },
+    options: {
+        indexAxis: 'y',
+        plugins: { title: { display: true, text: 'Top 10 cheapest pharmacies', color: '#fff' }, legend: { display: false } },
+        scales: { x: { title: { display: true, text: 'Price (UZS)', color: '#8b949e' }, ticks: { color: '#8b949e' } }, y: { ticks: { color: '#8b949e' } } }
+    }
+});
+
+// Map
+const points = {{ map_points|safe }};
+if (points.length > 0) {
+    const map = L.map('map').setView([points[0].lat, points[0].lon], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }).addTo(map);
+    const cluster = L.markerClusterGroup();
+    points.forEach(p => {
+        const icon = L.divIcon({
+            className: '',
+            html: `<div style="width:12px;height:12px;border-radius:50%;background:${p.cheap ? '#10b981' : '#ef4444'};border:2px solid #fff"></div>`,
+            iconSize: [12, 12]
+        });
+        const marker = L.marker([p.lat, p.lon], { icon });
+        marker.bindPopup(`<b>${p.name}</b><br>${p.address}<br><b style="color:#ef4444">${p.price.toLocaleString()} UZS</b><br>Stock: ${p.stock}`);
+        cluster.addLayer(marker);
+    });
+    map.addLayer(cluster);
+}
+</script>
+{% endif %}
+{% endblock %}
