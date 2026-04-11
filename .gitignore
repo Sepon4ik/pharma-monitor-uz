@@ -1,8 +1,12 @@
 __pycache__/
 *.pyc
 *.pyo
-data/
 recon_output/
 .env
 .streamlit/
-*.db
+.vercel
+
+# Ignore DB except the main one needed for deploy
+data/*.log
+data/*.tmp
+!data/pharma_monitor.db

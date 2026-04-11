@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Distribution Dashboard — {{ selected_date }}</h2>
+
+{% if not has_data %}
+<div class="info-box">No data available. Run a scrape first.</div>
+{% else %}
+
+<div class="kpi-row">
+    <div class="kpi-card"><div class="label">Products</div><div class="value">{{ kpis.products }}</div></div>
+    <div class="kpi-card"><div class="label">Pharmacies</div><div class="value">{{ "{:,}".format(kpis.pharmacies) }}</div></div>
+    <div class="kpi-card"><div class="label">Brands</div><div class="value">{{ kpis.brands }}</div></div>
+    <div class="kpi-card"><div class="label">Observations</div><div class="value">{{ "{:,}".format(kpis.observations) }}</div></div>
+    <div class="kpi-card"><div class="label">Avg Price</div><div class="value">{{ "{:,}".format(kpis.avg_price) }} UZS</div></div>
+</div>
+
+<div class="tabs">
+    <button class="tab-btn active" onclick="showTab('scorecard')">Scorecard</button>
+    <button class="tab-btn" onclick="showTab('price')">Price Analysis</button>
+    <button class="tab-btn" onclick="showTab('distribution')">Distribution</button>
+    <button class="tab-btn" onclick="showTab('map')">Pharmacy Map</button>
+</div>
+
+<!-- Scorecard -->
+<div id="tab-scorecard" class="tab-content active">
+    <h3>Brand Scorecard</h3>
+    <div class="table-scroll">
+        <table class="data-table">
+            <thead><tr><th>Brand</th><th>Products</th><th>Pharmacies</th><th>ND %</th><th>Avg Price</th><th>Min</th><th>Max</th><th>Stock</th><th>SKU/Pharmacy</th></tr></thead>
+            <tbody>
+            {% for r in scorecard_data %}
+            <tr>
+                <td><strong>{{ r.brand }}</strong></td><td>{{ r.products }}</td><td>{{ "{:,}".format(r.pharmacies) }}</td>
+                <td>{{ "%.1f"|format(r.nd_pct) }}%</td><td>{{ "{:,}".format(r.avg_price) }}</td>
+                <td>{{ "{:,}".format(r.min_price) }}</td><td>{{ "{:,}".format(r.max_price) }}</td>
+                <td>{{ "{:,}".format(r.total_stock) }}</td><td>{{ "%.1f"|format(r.avg_skus_per_pharmacy) }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="chart-row">
+        <div class="chart-box"><canvas id="chartPharmacies"></canvas></div>
+        <div class="chart-box"><canvas id="chartMarketShare"></canvas></div>
+    </div>
+</div>
+
+<!-- Price -->
+<div id="tab-price" class="tab-content">
+    <h3>Price Analysis</h3>
+    <div class="table-scroll">
+        <table class="data-table">
+            <thead><tr><th>Brand</th><th>Product</th><th>Category</th><th>Pharmacies</th><th>Avg Price</th><th>Min</th><th>Max</th><th>Stock</th></tr></thead>
+            <tbody>
+            {% for r in price_data %}
+            <tr>
+                <td>{{ r.brand }}</td><td>{{ r.good_name }}</td><td>{{ r.category }}</td>
+                <td>{{ r.pharmacies }}</td><td>{{ "{:,.0f}".format(r.avg_price) }}</td>
+                <td>{{ "{:,}".format(r.min_price) }}</td><td>{{ "{:,}".format(r.max_price) }}</td>
+                <td>{{ "{:,}".format(r.total_stock) }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="chart-row">
+        <div class="chart-box"><canvas id="chartPriceBox"></canvas></div>
+    </div>
+</div>
+
+<!-- Distribution -->
+<div id="tab-distribution" class="tab-content">
+    <div class="chart-row">
+        <div class="chart-box"><canvas id="chartND"></canvas></div>
+        <div class="chart-box"><canvas id="chartSKU"></canvas></div>
+    </div>
+    <h3>Distribution Gaps — Prolife</h3>
+    <p class="caption">Pharmacies carrying competitors but NOT Prolife</p>
+    {% if gaps %}
+    <div class="kpi-row"><div class="kpi-card"><div class="label">Gap pharmacies (opportunity)</div><div class="value">{{ gap_count }}</div></div></div>
+    <div class="table-scroll">
+        <table class="data-table">
+            <thead><tr><th>Pharmacy</th><th>Address</th><th>Competitors</th></tr></thead>
+            <tbody>
+            {% for g in gaps %}
+            <tr><td>{{ g.pharmacy_name }}</td><td>{{ g.address }}</td><td>{{ g.competitor_brands }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Map -->
+<div id="tab-map" class="tab-content">
+    <select class="filter-select" id="mapBrandFilter" onchange="loadMap()">
+        <option value="All">All brands</option>
+    </select>
+    <div id="map"></div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if has_data %}
+<script>
+function showTab(name) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    event.target.classList.add('active');
+    if (name === 'map') { setTimeout(() => { if(!window._map) loadMap(); else window._map.invalidateSize(); }, 100); }
+}
+
+// Scorecard charts
+new Chart('chartPharmacies', {
+    type: 'bar',
+    data: { labels: {{ scorecard_labels|safe }}, datasets: [{ label: 'Pharmacies', data: {{ scorecard_pharmacies|safe }}, backgroundColor: CHART_COLORS }] },
+    options: { plugins: { title: { display: true, text: 'Pharmacies per Brand', color: '#fff' }, legend: { display: false } }, scales: { x: { ticks: { color: '#8b949e' } }, y: { ticks: { color: '#8b949e' } } } }
+});
+new Chart('chartMarketShare', {
+    type: 'doughnut',
+    data: { labels: {{ scorecard_labels|safe }}, datasets: [{ data: {{ scorecard_pharmacies|safe }}, backgroundColor: CHART_COLORS }] },
+    options: { plugins: { title: { display: true, text: 'Market Share by Pharmacy Presence', color: '#fff' }, legend: { position: 'right', labels: { color: '#8b949e', boxWidth: 12 } } } }
+});
+
+// Price box chart
+new Chart('chartPriceBox', {
+    type: 'bar',
+    data: {
+        labels: {{ price_box_labels|safe }},
+        datasets: [
+            { label: 'Min', data: {{ price_box_min|safe }}, backgroundColor: 'rgba(16,185,129,0.7)' },
+            { label: 'Avg', data: {{ price_box_avg|safe }}, backgroundColor: 'rgba(59,130,246,0.7)' },
+            { label: 'Max', data: {{ price_box_max|safe }}, backgroundColor: 'rgba(239,68,68,0.7)' },
+        ]
+    },
+    options: { plugins: { title: { display: true, text: 'Price Range by Brand (UZS)', color: '#fff' }, legend: { labels: { color: '#8b949e' } } }, scales: { x: { ticks: { color: '#8b949e' } }, y: { ticks: { color: '#8b949e' } } } }
+});
+
+// Distribution charts
+new Chart('chartND', {
+    type: 'bar',
+    data: { labels: {{ nd_labels|safe }}, datasets: [{ label: 'ND %', data: {{ nd_values|safe }}, backgroundColor: CHART_COLORS }] },
+    options: { plugins: { title: { display: true, text: 'Numeric Distribution (%)', color: '#fff' }, legend: { display: false } }, scales: { x: { ticks: { color: '#8b949e' } }, y: { title: { display: true, text: '% of pharmacies', color: '#8b949e' }, ticks: { color: '#8b949e' } } } }
+});
+new Chart('chartSKU', {
+    type: 'bar',
+    data: { labels: {{ sku_labels|safe }}, datasets: [{ label: 'SKUs', data: {{ sku_values|safe }}, backgroundColor: CHART_COLORS }] },
+    options: { plugins: { title: { display: true, text: 'SKU Coverage', color: '#fff' }, legend: { display: false } }, scales: { x: { ticks: { color: '#8b949e' } }, y: { ticks: { color: '#8b949e' } } } }
+});
+
+// Map
+function loadMap() {
+    const brand = document.getElementById('mapBrandFilter').value;
+    const date = '{{ selected_date }}';
+    fetch(`/api/map?date=${date}&brand=${brand}`)
+        .then(r => r.json())
+        .then(points => {
+            if (window._map) window._map.remove();
+            if (!points.length) return;
+            const map = L.map('map').setView([points[0].lat, points[0].lon], 6);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }).addTo(map);
+            const cluster = L.markerClusterGroup();
+            points.forEach(p => {
+                const marker = L.marker([p.lat, p.lon]);
+                marker.bindPopup(`<b>${p.name}</b><br>${p.address}<br>Products: ${p.products} | Brands: ${p.brands}`);
+                cluster.addLayer(marker);
+            });
+            map.addLayer(cluster);
+            window._map = map;
+        });
+}
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Chain Analysis</h2>
+<p class="caption">Distribution coverage by pharmacy chains</p>
+
+{% if not has_data %}
+<div class="info-box">No data available.</div>
+{% else %}
+
+<label>Select brand</label>
+<select class="filter-select" onchange="window.location='/chains?date={{ selected_date }}&brand='+encodeURIComponent(this.value)">
+    {% for b in all_brands %}
+    <option value="{{ b }}" {% if b == brand %}selected{% endif %}>{{ b }}</option>
+    {% endfor %}
+</select>
+
+<h3>{{ brand }} — Coverage by Chain</h3>
+<div class="kpi-row">
+    <div class="kpi-card"><div class="label">Chains with brand</div><div class="value">{{ chain_kpis.chains_with }}</div></div>
+    <div class="kpi-card"><div class="label">Chain pharmacies covered</div><div class="value">{{ chain_kpis.covered }}</div></div>
+    <div class="kpi-card"><div class="label">Chain coverage</div><div class="value">{{ chain_kpis.coverage_pct }}</div></div>
+    <div class="kpi-card"><div class="label">Chains WITHOUT brand</div><div class="value">{{ chain_kpis.chains_without }}</div></div>
+</div>
+
+<div class="chart-row">
+    <div class="chart-box" style="min-height:500px"><canvas id="chartCoverage"></canvas></div>
+</div>
+
+<div class="table-scroll">
+    <table class="data-table">
+        <thead><tr><th>Chain</th><th>Total Pharmacies</th><th>{{ brand }} Present</th><th>Coverage %</th><th>Products</th><th>Product Names</th></tr></thead>
+        <tbody>
+        {% for c in chain_stats %}
+        <tr>
+            <td>{{ c.chain }}</td><td>{{ c.total }}</td><td>{{ c.present }}</td>
+            <td>{{ c.coverage }}%</td><td>{{ c.products }}</td><td>{{ c.product_names }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<hr>
+<h3>Competitor Comparison by Chain</h3>
+<p class="caption">How each brand covers the same chains</p>
+<div class="chart-row">
+    <div class="chart-box" style="min-height:600px"><canvas id="chartCompare"></canvas></div>
+</div>
+
+<hr>
+<h3>Chain Gaps — {{ brand }}</h3>
+<p class="caption">Chains where competitors are present but {{ brand }} is NOT</p>
+{% if gap_chains %}
+<div class="kpi-row"><div class="kpi-card"><div class="label">Chains without brand (opportunity)</div><div class="value">{{ gap_chains|length }}</div></div></div>
+<div class="table-scroll">
+    <table class="data-table">
+        <thead><tr><th>Chain</th><th>Pharmacies</th><th>Competitor Brands</th><th>Products Available</th></tr></thead>
+        <tbody>
+        {% for g in gap_chains %}
+        <tr><td>{{ g.chain }}</td><td>{{ g.pharmacies }}</td><td>{{ g.competitors }}</td><td>{{ g.products }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="success-box">{{ brand }} is present in all chains!</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if has_data %}
+<script>
+// Coverage chart
+new Chart('chartCoverage', {
+    type: 'bar',
+    data: {
+        labels: {{ coverage_labels|safe }},
+        datasets: [
+            { label: 'Total in chain', data: {{ coverage_total|safe }}, backgroundColor: 'rgba(100,100,100,0.3)' },
+            { label: '{{ brand }} present', data: {{ coverage_present|safe }}, backgroundColor: 'rgba(16,185,129,0.7)' },
+        ]
+    },
+    options: {
+        indexAxis: 'y',
+        plugins: { title: { display: true, text: '{{ brand }} coverage in top 20 chains', color: '#fff' }, legend: { labels: { color: '#8b949e' } } },
+        scales: { x: { title: { display: true, text: 'Pharmacies', color: '#8b949e' }, ticks: { color: '#8b949e' } }, y: { ticks: { color: '#8b949e' } } }
+    }
+});
+
+// Competitor comparison
+const compareData = {{ compare_json|safe }};
+new Chart('chartCompare', {
+    type: 'bar',
+    data: {
+        labels: compareData.labels,
+        datasets: compareData.datasets.map((ds, i) => ({
+            label: ds.label,
+            data: ds.data,
+            backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
+        }))
+    },
+    options: {
+        indexAxis: 'y',
+        plugins: { title: { display: true, text: 'Brand presence in chains (pharmacy count)', color: '#fff' }, legend: { labels: { color: '#8b949e' } } },
+        scales: { x: { title: { display: true, text: 'Pharmacies', color: '#8b949e' }, ticks: { color: '#8b949e' } }, y: { ticks: { color: '#8b949e', font: { size: 10 } } } }
+    }
+});
+</script>
+{% endif %}
+{% endblock %}
